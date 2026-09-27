@@ -1,1 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アクアポニックス観測記録 | 蔵前工科高校 課題研究</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+<div class="app">
+
+  <!-- ===== サイドバー ===== -->
+  <nav class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">〜</span>
+      <div class="brand-text">
+        <strong>アクアポニックス観測記録</strong>
+        <small>蔵前工科高校 課題研究</small>
+      </div>
+    </div>
+
+    <ul class="tabs">
+      <li><button class="tab-btn active" data-tab="dashboard">水槽ダッシュボード</button></li>
+      <li><button class="tab-btn" data-tab="form-iot">IoT・センサー班</button></li>
+      <li><button class="tab-btn" data-tab="form-hw">HW・機械班</button></li>
+      <li><button class="tab-btn" data-tab="form-bio">飼育・生態班</button></li>
+      <li><button class="tab-btn" data-tab="form-agri">栽培・農学班</button></li>
+      <li><button class="tab-btn" data-tab="logs">記録一覧・引き継ぎ</button></li>
+      <li><button class="tab-btn" data-tab="milestones">進行状況（Phase）</button></li>
+      <li><button class="tab-btn" data-tab="settings">Ambient連携・出力</button></li>
+    </ul>
+
+    <div class="sidebar-foot">
+      <span id="lastSync">最終記録: --</span>
+    </div>
+  </nav>
+
+  <!-- ===== メイン ===== -->
+  <main class="content">
+
+    <!-- ---------- ダッシュボード ---------- -->
+    <section id="dashboard" class="tab-panel active">
+      <header class="panel-head">
+        <h1>水槽ダッシュボード</h1>
+        <p>ESP32の自動観測データと、日々の手入力データをまとめて確認します。</p>
+      </header>
+
+      <div id="alertBox" class="alert-box hidden"></div>
+
+      <div class="card-grid">
+        <div class="stat-card"><span class="stat-label">水温</span><span class="stat-value" id="statTemp">--</span><span class="stat-unit">℃</span></div>
+        <div class="stat-card"><span class="stat-label">室温</span><span class="stat-value" id="statRoom">--</span><span class="stat-unit">℃</span></div>
+        <div class="stat-card"><span class="stat-label">湿度</span><span class="stat-value" id="statHumid">--</span><span class="stat-unit">%</span></div>
+        <div class="stat-card"><span class="stat-label">気圧</span><span class="stat-value" id="statPress">--</span><span class="stat-unit">hPa</span></div>
+      </div>
+
+      <div class="chart-block">
+        <div class="chart-head">
+          <h2>ESP32 自動観測データ（Ambient）</h2>
+          <button class="btn-small" id="btnFetchAmbient">最新データを取得</button>
+        </div>
+        <p class="chart-note" id="ambientNote">Ambientのチャネル設定は「Ambient連携・出力」タブで行ってください。</p>
+        <canvas id="chartAmbient" height="90"></canvas>
+      </div>
+
+      <div class="chart-block">
+        <h2>水質推移（pH・アンモニア・亜硝酸・硝酸塩）</h2>
+        <canvas id="chartWaterQuality" height="90"></canvas>
+      </div>
+
+      <div class="chart-block">
+        <h2>相関分析：水温 と 小松菜の草丈</h2>
+        <canvas id="chartCorrelation" height="90"></canvas>
+      </div>
+    </section>
+
+    <!-- ---------- IoT・センサー班 ---------- -->
+    <section id="form-iot" class="tab-panel">
+      <header class="panel-head"><h1>IoT・センサー班 記録</h1><p>DS18B20 / BME280 の値と ESP32 の動作状況を記録します。</p></header>
+      <form class="log-form" data-team="iot">
+        <div class="grid-2">
+          <label>日付<input type="date" name="date" required></label>
+          <label>時間<input type="time" name="time" required></label>
+        </div>
+        <label>担当者名<input type="text" name="author" placeholder="例）山田" required></label>
+        <div class="grid-2">
+          <label>水温 (℃)<input type="number" step="0.1" name="waterTemp"></label>
+          <label>室温 (℃)<input type="number" step="0.1" name="roomTemp"></label>
+        </div>
+        <div class="grid-2">
+          <label>湿度 (%)<input type="number" step="0.1" name="humidity"></label>
+          <label>気圧 (hPa)<input type="number" step="0.1" name="pressure"></label>
+        </div>
+        <label>ESP32動作チェック
+          <select name="esp32Status">
+            <option value="正常">正常</option>
+            <option value="異常">異常</option>
+          </select>
+        </label>
+        <label>メンテナンス・障害ログ<textarea name="maintLog" rows="3" placeholder="例）電源が一度落ちたため再起動した"></textarea></label>
+        <label>作業概要<textarea name="summary" rows="2"></textarea></label>
+        <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
+        <label>写真添付<input type="file" name="photo" accept="image/*"></label>
+        <button type="submit" class="btn-primary">この班の記録を保存</button>
+      </form>
+    </section>
+
+    <!-- ---------- HW・機械班 ---------- -->
+    <section id="form-hw" class="tab-panel">
+      <header class="panel-head"><h1>HW・機械班 記録</h1><p>ポンプ・サイフォン・LED可動部・架台の状態を記録します。</p></header>
+      <form class="log-form" data-team="hw">
+        <div class="grid-2">
+          <label>日付<input type="date" name="date" required></label>
+          <label>時間<input type="time" name="time" required></label>
+        </div>
+        <label>担当者名<input type="text" name="author" required></label>
+        <div class="grid-2">
+          <label>ポンプ動作
+            <select name="pumpStatus"><option value="正常">正常</option><option value="異常">異常</option></select>
+          </label>
+          <label>ベルサイフォン動作
+            <select name="siphonStatus"><option value="正常">正常</option><option value="異常">異常</option></select>
+          </label>
+        </div>
+        <label>LED高さ (mm)<input type="number" name="ledHeight" placeholder="可動LEDの高さ"></label>
+        <label>清掃・架台チェック
+          <select name="frameCheck">
+            <option value="異常なし">異常なし</option>
+            <option value="要注意">要注意（メモ参照）</option>
+          </select>
+        </label>
+        <label>構造変更メモ<textarea name="structureNote" rows="3" placeholder="架台・配管・LED機構の変更点など"></textarea></label>
+        <label>作業概要<textarea name="summary" rows="2"></textarea></label>
+        <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
+        <label>写真添付<input type="file" name="photo" accept="image/*"></label>
+        <button type="submit" class="btn-primary">この班の記録を保存</button>
+      </form>
+    </section>
+
+    <!-- ---------- 飼育・生態班 ---------- -->
+    <section id="form-bio" class="tab-panel">
+      <header class="panel-head"><h1>飼育・生態班 記録</h1><p>隅田川で採集した生体の状態と水質の目視チェックを記録します。</p></header>
+      <form class="log-form" data-team="bio">
+        <div class="grid-2">
+          <label>日付<input type="date" name="date" required></label>
+          <label>時間<input type="time" name="time" required></label>
+        </div>
+        <label>担当者名<input type="text" name="author" required></label>
+        <label>生体の種類（複数可）<input type="text" name="species" placeholder="例）マハゼ、チチブ、テナガエビ、スジエビ"></label>
+        <div class="grid-2">
+          <label>個体数<input type="number" name="count"></label>
+          <label>死亡数<input type="number" name="death"></label>
+        </div>
+        <label>行動・餌食いの状態<textarea name="behavior" rows="2"></textarea></label>
+        <label>採集・投入ログ<textarea name="collectLog" rows="2" placeholder="採集場所・日時・投入した生体など"></textarea></label>
+        <div class="grid-2">
+          <label>水の濁り
+            <select name="turbidity"><option value="透明">透明</option><option value="やや濁り">やや濁り</option><option value="濁り">濁り</option></select>
+          </label>
+          <label>臭い
+            <select name="odor"><option value="なし">なし</option><option value="やや臭う">やや臭う</option><option value="悪臭">悪臭</option></select>
+          </label>
+        </div>
+        <label>作業概要<textarea name="summary" rows="2"></textarea></label>
+        <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
+        <label>写真添付<input type="file" name="photo" accept="image/*"></label>
+        <button type="submit" class="btn-primary">この班の記録を保存</button>
+      </form>
+    </section>
+
+    <!-- ---------- 栽培・農学班 ---------- -->
+    <section id="form-agri" class="tab-panel">
+      <header class="panel-head"><h1>栽培・農学班 記録</h1><p>東京小松菜の生育状況を記録します。</p></header>
+      <form class="log-form" data-team="agri">
+        <div class="grid-2">
+          <label>日付<input type="date" name="date" required></label>
+          <label>時間<input type="time" name="time" required></label>
+        </div>
+        <label>担当者名<input type="text" name="author" required></label>
+        <div class="grid-2">
+          <label>草丈 (cm)<input type="number" step="0.1" name="height"></label>
+          <label>葉数<input type="number" name="leaves"></label>
+        </div>
+        <label>定植・収穫量 (g)<input type="number" step="0.1" name="harvestG"></label>
+        <label>根・培地の状態<textarea name="rootNote" rows="2"></textarea></label>
+        <label>作業概要<textarea name="summary" rows="2"></textarea></label>
+        <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
+        <label>写真添付<input type="file" name="photo" accept="image/*"></label>
+        <button type="submit" class="btn-primary">この班の記録を保存</button>
+      </form>
+
+      <div class="chart-block">
+        <h2>水質手入力（pH・アンモニア・亜硝酸・硝酸塩）を追加</h2>
+        <form id="waterQualityForm" class="log-form">
+          <div class="grid-2">
+            <label>日付<input type="date" name="date" required></label>
+            <label>pH<input type="number" step="0.1" name="ph"></label>
+          </div>
+          <div class="grid-2">
+            <label>アンモニア (mg/L)<input type="number" step="0.01" name="ammonia"></label>
+            <label>亜硝酸 (mg/L)<input type="number" step="0.01" name="nitrite"></label>
+          </div>
+          <label>硝酸塩 (mg/L)<input type="number" step="0.1" name="nitrate"></label>
+          <button type="submit" class="btn-primary">水質データを保存</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ---------- 記録一覧 ---------- -->
+    <section id="logs" class="tab-panel">
+      <header class="panel-head">
+        <h1>記録一覧・引き継ぎ</h1>
+        <p>全班の記録を新しい順に表示します。</p>
+      </header>
+      <div class="filter-row">
+        <label>班で絞り込み
+          <select id="filterTeam">
+            <option value="all">すべて</option>
+            <option value="iot">IoT・センサー班</option>
+            <option value="hw">HW・機械班</option>
+            <option value="bio">飼育・生態班</option>
+            <option value="agri">栽培・農学班</option>
+          </select>
+        </label>
+      </div>
+      <div id="logList" class="log-list"></div>
+    </section>
+
+    <!-- ---------- マイルストーン ---------- -->
+    <section id="milestones" class="tab-panel">
+      <header class="panel-head">
+        <h1>進行状況（Phase）</h1>
+        <p>4つのPhaseの達成チェックポイントを管理します。</p>
+      </header>
+      <div id="milestoneWrap" class="milestone-wrap"></div>
+    </section>
+
+    <!-- ---------- 設定 ---------- -->
+    <section id="settings" class="tab-panel">
+      <header class="panel-head">
+        <h1>Ambient連携・データ出力</h1>
+        <p>ESP32から送信されるAmbientチャネルの読み取り設定と、記録データのCSV出力を行います。</p>
+      </header>
+
+      <div class="chart-block">
+        <h2>Ambientチャネル設定</h2>
+        <div class="grid-2">
+          <label>チャネルID<input type="text" id="ambientChannelId" placeholder="例）12345"></label>
+          <label>リードキー（公開チャネルは空欄可）<input type="text" id="ambientReadKey" placeholder="任意"></label>
+        </div>
+        <button class="btn-primary" id="btnSaveAmbient">設定を保存</button>
+        <p class="chart-note">d1=水温 / d2=室温 / d3=湿度 / d4=気圧 としてAmbientに送信している想定です。異なる場合は script.js の AMBIENT_FIELD_MAP を調整してください。</p>
+      </div>
+
+      <div class="chart-block">
+        <h2>データ出力（Phase 4）</h2>
+        <p class="chart-note">蓄積した記録・水質データをCSVで出力し、発表資料に活用できます。</p>
+        <div class="btn-row">
+          <button class="btn-secondary" id="btnExportLogs">記録一覧をCSV出力</button>
+          <button class="btn-secondary" id="btnExportWQ">水質データをCSV出力</button>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <h2>データ管理</h2>
+        <p class="chart-note">この端末（ブラウザ）内にのみ保存されています。バックアップ・共有には上記のCSV出力をご利用ください。</p>
+        <button class="btn-danger" id="btnClearAll">全データを削除</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
