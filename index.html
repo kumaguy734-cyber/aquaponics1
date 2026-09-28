@@ -24,17 +24,19 @@
     </div>
 
     <ul class="tabs">
-      <li><button class="tab-btn active" data-tab="dashboard">水槽ダッシュボード</button></li>
-      <li><button class="tab-btn" data-tab="form-iot">IoT・センサー班</button></li>
+      <li><button class="tab-btn active" data-tab="dashboard">ダッシュボード</button></li>
+      <li><button class="tab-btn" data-tab="form-water">水質検査（水質管理表）</button></li>
+      <li><button class="tab-btn" data-tab="form-iot">環境データ（バックアップ入力）</button></li>
       <li><button class="tab-btn" data-tab="form-hw">HW・機械班</button></li>
       <li><button class="tab-btn" data-tab="form-bio">飼育・生態班</button></li>
       <li><button class="tab-btn" data-tab="form-agri">栽培・農学班</button></li>
       <li><button class="tab-btn" data-tab="logs">記録一覧・引き継ぎ</button></li>
-      <li><button class="tab-btn" data-tab="milestones">進行状況（Phase）</button></li>
-      <li><button class="tab-btn" data-tab="settings">Ambient連携・出力</button></li>
+      <li><button class="tab-btn" data-tab="milestones">スケジュール・Phase</button></li>
+      <li><button class="tab-btn" data-tab="data">データ取り込み・出力</button></li>
     </ul>
 
     <div class="sidebar-foot">
+      <span id="nextSession">次回作業日: --</span>
       <span id="lastSync">最終記録: --</span>
     </div>
   </nav>
@@ -45,8 +47,8 @@
     <!-- ---------- ダッシュボード ---------- -->
     <section id="dashboard" class="tab-panel active">
       <header class="panel-head">
-        <h1>水槽ダッシュボード</h1>
-        <p>ESP32の自動観測データと、日々の手入力データをまとめて確認します。</p>
+        <h1>ダッシュボード</h1>
+        <p>ESP32＋RTCがSDカードに残したログ（取り込み）と、手入力のバックアップ記録をまとめて確認します。</p>
       </header>
 
       <div id="alertBox" class="alert-box hidden"></div>
@@ -57,36 +59,83 @@
         <div class="stat-card"><span class="stat-label">湿度</span><span class="stat-value" id="statHumid">--</span><span class="stat-unit">%</span></div>
         <div class="stat-card"><span class="stat-label">気圧</span><span class="stat-value" id="statPress">--</span><span class="stat-unit">hPa</span></div>
       </div>
+      <p class="chart-note" id="statNote"></p>
 
       <div class="chart-block">
-        <div class="chart-head">
-          <h2>ESP32 自動観測データ（Ambient）</h2>
-          <button class="btn-small" id="btnFetchAmbient">最新データを取得</button>
-        </div>
-        <p class="chart-note" id="ambientNote">Ambientのチャネル設定は「Ambient連携・出力」タブで行ってください。</p>
-        <canvas id="chartAmbient" height="90"></canvas>
+        <h2>水温・室温・湿度・気圧の推移</h2>
+        <p class="chart-note" id="envNote"></p>
+        <canvas id="chartEnv" height="90"></canvas>
       </div>
 
       <div class="chart-block">
-        <h2>水質推移（pH・アンモニア・亜硝酸・硝酸塩）</h2>
+        <h2>水質の推移（窒素循環）</h2>
+        <p class="chart-note">「50-100」のような範囲入力は中間値で描画します。</p>
         <canvas id="chartWaterQuality" height="90"></canvas>
       </div>
 
       <div class="chart-block">
-        <h2>相関分析：水温 と 小松菜の草丈</h2>
+        <div class="chart-head">
+          <h2>相関分析：小松菜の草丈との関係</h2>
+          <select id="corrTarget">
+            <option value="temp">水温 と 草丈</option>
+            <option value="no3">硝酸塩 と 草丈</option>
+          </select>
+        </div>
         <canvas id="chartCorrelation" height="90"></canvas>
       </div>
     </section>
 
-    <!-- ---------- IoT・センサー班 ---------- -->
+    <!-- ---------- 水質検査 ---------- -->
+    <section id="form-water" class="tab-panel">
+      <header class="panel-head">
+        <h1>水質検査（水質管理表）</h1>
+        <p>紙・Excelの水質管理表と同じ項目です。試験紙の読み取り値を、そのまま（例：50-100）入力できます。同じ日付で保存すると上書きされます。</p>
+      </header>
+
+      <form id="waterForm" class="log-form">
+        <div class="grid-2">
+          <label>日付<input type="date" name="date" required></label>
+          <label>担当者名<input type="text" name="author"></label>
+        </div>
+        <div class="grid-2">
+          <label>総硬度（GH）<input type="text" name="gh" placeholder="例）50-100"></label>
+          <label>炭酸塩硬度（KH）<input type="text" name="kh" placeholder="例）80"></label>
+        </div>
+        <div class="grid-2">
+          <label>亜硝酸塩（NO2）<input type="text" name="no2" placeholder="例）0"></label>
+          <label>硝酸塩（NO3）<input type="text" name="no3" placeholder="例）5-10"></label>
+        </div>
+        <div class="grid-2">
+          <label>アンモニア（NH3）<input type="text" name="nh3" placeholder="例）0"></label>
+          <label>総塩素（Cl2）<input type="text" name="cl2" placeholder="例）0"></label>
+        </div>
+        <div class="grid-2">
+          <label>pH<input type="text" name="ph" placeholder="例）7.6"></label>
+          <label>水位（cm）<input type="number" step="0.1" name="level" placeholder="例）23"></label>
+        </div>
+        <label>塩分（追加項目・任意）<input type="text" name="salinity" placeholder="汽水生物を飼う場合のみ。例）‰ または 比重"></label>
+        <label>メモ<textarea name="note" rows="2" placeholder="水換え・補水・薬剤の使用など"></textarea></label>
+        <button type="submit" class="btn-primary">水質データを保存</button>
+      </form>
+
+      <div class="chart-block">
+        <h2>水質管理表</h2>
+        <div class="table-scroll"><table class="wq-table" id="wqTable"></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- 環境データ（バックアップ入力） ---------- -->
     <section id="form-iot" class="tab-panel">
-      <header class="panel-head"><h1>IoT・センサー班 記録</h1><p>DS18B20 / BME280 の値と ESP32 の動作状況を記録します。</p></header>
+      <header class="panel-head">
+        <h1>環境データ（バックアップ入力）</h1>
+        <p>通常はESP32のSDカードログを取り込みます。ログが取れなかった時のために、水温・室温・湿度・気圧を手で入力できます。</p>
+      </header>
       <form class="log-form" data-team="iot">
         <div class="grid-2">
           <label>日付<input type="date" name="date" required></label>
           <label>時間<input type="time" name="time" required></label>
         </div>
-        <label>担当者名<input type="text" name="author" placeholder="例）山田" required></label>
+        <label>担当者名<input type="text" name="author" required></label>
         <div class="grid-2">
           <label>水温 (℃)<input type="number" step="0.1" name="waterTemp"></label>
           <label>室温 (℃)<input type="number" step="0.1" name="roomTemp"></label>
@@ -95,23 +144,25 @@
           <label>湿度 (%)<input type="number" step="0.1" name="humidity"></label>
           <label>気圧 (hPa)<input type="number" step="0.1" name="pressure"></label>
         </div>
-        <label>ESP32動作チェック
-          <select name="esp32Status">
-            <option value="正常">正常</option>
-            <option value="異常">異常</option>
-          </select>
-        </label>
-        <label>メンテナンス・障害ログ<textarea name="maintLog" rows="3" placeholder="例）電源が一度落ちたため再起動した"></textarea></label>
+        <div class="grid-2">
+          <label>ESP32の動作
+            <select name="esp32Status"><option value="正常">正常</option><option value="異常">異常</option></select>
+          </label>
+          <label>RTC・SDカードの記録
+            <select name="loggerStatus"><option value="記録できている">記録できている</option><option value="記録が止まっている">記録が止まっている</option><option value="未確認">未確認</option></select>
+          </label>
+        </div>
+        <label>メンテナンス・障害ログ<textarea name="maintLog" rows="3" placeholder="例）SDカードを交換した／電源が落ちていた"></textarea></label>
         <label>作業概要<textarea name="summary" rows="2"></textarea></label>
         <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
         <label>写真添付<input type="file" name="photo" accept="image/*"></label>
-        <button type="submit" class="btn-primary">この班の記録を保存</button>
+        <button type="submit" class="btn-primary">保存</button>
       </form>
     </section>
 
     <!-- ---------- HW・機械班 ---------- -->
     <section id="form-hw" class="tab-panel">
-      <header class="panel-head"><h1>HW・機械班 記録</h1><p>ポンプ・サイフォン・LED可動部・架台の状態を記録します。</p></header>
+      <header class="panel-head"><h1>HW・機械班 記録</h1><p>ポンプ・サイフォン・LED昇降装置・架台の状態を記録します。</p></header>
       <form class="log-form" data-team="hw">
         <div class="grid-2">
           <label>日付<input type="date" name="date" required></label>
@@ -126,36 +177,44 @@
             <select name="siphonStatus"><option value="正常">正常</option><option value="異常">異常</option></select>
           </label>
         </div>
-        <label>LED高さ (mm)<input type="number" name="ledHeight" placeholder="可動LEDの高さ"></label>
+        <div class="grid-2">
+          <label>LED昇降装置
+            <select name="ledLift"><option value="未取り付け">未取り付け</option><option value="取り付け作業中">取り付け作業中</option><option value="取り付け済み・正常">取り付け済み・正常</option><option value="取り付け済み・要調整">取り付け済み・要調整</option></select>
+          </label>
+          <label>LED高さ (mm)<input type="number" name="ledHeight" placeholder="植物からの距離"></label>
+        </div>
         <label>清掃・架台チェック
-          <select name="frameCheck">
-            <option value="異常なし">異常なし</option>
-            <option value="要注意">要注意（メモ参照）</option>
-          </select>
+          <select name="frameCheck"><option value="異常なし">異常なし</option><option value="要注意">要注意（メモ参照）</option></select>
         </label>
         <label>構造変更メモ<textarea name="structureNote" rows="3" placeholder="架台・配管・LED機構の変更点など"></textarea></label>
         <label>作業概要<textarea name="summary" rows="2"></textarea></label>
         <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
         <label>写真添付<input type="file" name="photo" accept="image/*"></label>
-        <button type="submit" class="btn-primary">この班の記録を保存</button>
+        <button type="submit" class="btn-primary">保存</button>
       </form>
     </section>
 
     <!-- ---------- 飼育・生態班 ---------- -->
     <section id="form-bio" class="tab-panel">
-      <header class="panel-head"><h1>飼育・生態班 記録</h1><p>隅田川で採集した生体の状態と水質の目視チェックを記録します。</p></header>
+      <header class="panel-head"><h1>飼育・生態班 記録</h1><p>隅田川で採集した生体の状態と、水の見た目のチェックを記録します。</p></header>
       <form class="log-form" data-team="bio">
         <div class="grid-2">
           <label>日付<input type="date" name="date" required></label>
           <label>時間<input type="time" name="time" required></label>
         </div>
         <label>担当者名<input type="text" name="author" required></label>
-        <label>生体の種類（複数可）<input type="text" name="species" placeholder="例）マハゼ、チチブ、テナガエビ、スジエビ"></label>
+        <label>生体の種類<input type="text" name="species" placeholder="例）マハゼ、チチブ、テナガエビ、スジエビ"></label>
         <div class="grid-2">
-          <label>個体数<input type="number" name="count"></label>
+          <label>個体数（現在）<input type="number" name="count"></label>
           <label>死亡数<input type="number" name="death"></label>
         </div>
-        <label>行動・餌食いの状態<textarea name="behavior" rows="2"></textarea></label>
+        <div class="grid-2">
+          <label>餌食い
+            <select name="feeding"><option value="">--</option><option value="よく食べる">よく食べる</option><option value="少し残る">少し残る</option><option value="食べない">食べない</option><option value="給餌なし">給餌なし</option></select>
+          </label>
+          <label>給餌量（任意）<input type="text" name="feedAmount" placeholder="例）3粒"></label>
+        </div>
+        <label>行動・様子<textarea name="behavior" rows="2"></textarea></label>
         <label>採集・投入ログ<textarea name="collectLog" rows="2" placeholder="採集場所・日時・投入した生体など"></textarea></label>
         <div class="grid-2">
           <label>水の濁り
@@ -168,13 +227,13 @@
         <label>作業概要<textarea name="summary" rows="2"></textarea></label>
         <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
         <label>写真添付<input type="file" name="photo" accept="image/*"></label>
-        <button type="submit" class="btn-primary">この班の記録を保存</button>
+        <button type="submit" class="btn-primary">保存</button>
       </form>
     </section>
 
     <!-- ---------- 栽培・農学班 ---------- -->
     <section id="form-agri" class="tab-panel">
-      <header class="panel-head"><h1>栽培・農学班 記録</h1><p>東京小松菜の生育状況を記録します。</p></header>
+      <header class="panel-head"><h1>栽培・農学班 記録</h1><p>東京小松菜の生育状況を株ごとに記録します。</p></header>
       <form class="log-form" data-team="agri">
         <div class="grid-2">
           <label>日付<input type="date" name="date" required></label>
@@ -182,45 +241,38 @@
         </div>
         <label>担当者名<input type="text" name="author" required></label>
         <div class="grid-2">
+          <label>株番号
+            <select name="plantNo"><option value="全体">全体</option><option value="株1">株1</option><option value="株2">株2</option><option value="株3">株3</option><option value="株4">株4</option></select>
+          </label>
+          <label>葉色
+            <select name="leafColor"><option value="">--</option><option value="濃い緑">濃い緑</option><option value="緑">緑</option><option value="薄い緑・黄緑">薄い緑・黄緑</option><option value="黄変">黄変</option></select>
+          </label>
+        </div>
+        <div class="grid-2">
           <label>草丈 (cm)<input type="number" step="0.1" name="height"></label>
           <label>葉数<input type="number" name="leaves"></label>
         </div>
         <label>定植・収穫量 (g)<input type="number" step="0.1" name="harvestG"></label>
+        <label>病害虫・傷み<input type="text" name="pest" placeholder="例）なし／葉に穴"></label>
         <label>根・培地の状態<textarea name="rootNote" rows="2"></textarea></label>
         <label>作業概要<textarea name="summary" rows="2"></textarea></label>
         <label>引き継ぎ事項<textarea name="handover" rows="2"></textarea></label>
         <label>写真添付<input type="file" name="photo" accept="image/*"></label>
-        <button type="submit" class="btn-primary">この班の記録を保存</button>
+        <button type="submit" class="btn-primary">保存</button>
       </form>
-
-      <div class="chart-block">
-        <h2>水質手入力（pH・アンモニア・亜硝酸・硝酸塩）を追加</h2>
-        <form id="waterQualityForm" class="log-form">
-          <div class="grid-2">
-            <label>日付<input type="date" name="date" required></label>
-            <label>pH<input type="number" step="0.1" name="ph"></label>
-          </div>
-          <div class="grid-2">
-            <label>アンモニア (mg/L)<input type="number" step="0.01" name="ammonia"></label>
-            <label>亜硝酸 (mg/L)<input type="number" step="0.01" name="nitrite"></label>
-          </div>
-          <label>硝酸塩 (mg/L)<input type="number" step="0.1" name="nitrate"></label>
-          <button type="submit" class="btn-primary">水質データを保存</button>
-        </form>
-      </div>
     </section>
 
     <!-- ---------- 記録一覧 ---------- -->
     <section id="logs" class="tab-panel">
       <header class="panel-head">
         <h1>記録一覧・引き継ぎ</h1>
-        <p>全班の記録を新しい順に表示します。</p>
+        <p>全班の記録を新しい順に表示します。引き継ぎ事項は赤字で表示されます。</p>
       </header>
       <div class="filter-row">
         <label>班で絞り込み
           <select id="filterTeam">
             <option value="all">すべて</option>
-            <option value="iot">IoT・センサー班</option>
+            <option value="iot">環境データ（IoT・センサー班）</option>
             <option value="hw">HW・機械班</option>
             <option value="bio">飼育・生態班</option>
             <option value="agri">栽培・農学班</option>
@@ -230,45 +282,60 @@
       <div id="logList" class="log-list"></div>
     </section>
 
-    <!-- ---------- マイルストーン ---------- -->
+    <!-- ---------- スケジュール・マイルストーン ---------- -->
     <section id="milestones" class="tab-panel">
       <header class="panel-head">
-        <h1>進行状況（Phase）</h1>
-        <p>4つのPhaseの達成チェックポイントを管理します。</p>
+        <h1>スケジュール・Phase</h1>
+        <p>残りの作業日と、Phaseごとの達成チェックポイントです。月曜のみの活動なので、日ごとの目標を決めて進めます。</p>
       </header>
+      <div class="summary-row" id="summaryRow"></div>
+      <div class="chart-block">
+        <h2>作業日カレンダー</h2>
+        <div class="session-strip" id="sessionStrip"></div>
+      </div>
       <div id="milestoneWrap" class="milestone-wrap"></div>
     </section>
 
-    <!-- ---------- 設定 ---------- -->
-    <section id="settings" class="tab-panel">
+    <!-- ---------- データ取り込み・出力 ---------- -->
+    <section id="data" class="tab-panel">
       <header class="panel-head">
-        <h1>Ambient連携・データ出力</h1>
-        <p>ESP32から送信されるAmbientチャネルの読み取り設定と、記録データのCSV出力を行います。</p>
+        <h1>データ取り込み・出力</h1>
+        <p>SDカードのログ取り込み、CSV出力、バックアップを行います。</p>
       </header>
 
       <div class="chart-block">
-        <h2>Ambientチャネル設定</h2>
-        <div class="grid-2">
-          <label>チャネルID<input type="text" id="ambientChannelId" placeholder="例）12345"></label>
-          <label>リードキー（公開チャネルは空欄可）<input type="text" id="ambientReadKey" placeholder="任意"></label>
-        </div>
-        <button class="btn-primary" id="btnSaveAmbient">設定を保存</button>
-        <p class="chart-note">d1=水温 / d2=室温 / d3=湿度 / d4=気圧 としてAmbientに送信している想定です。異なる場合は script.js の AMBIENT_FIELD_MAP を調整してください。</p>
-      </div>
-
-      <div class="chart-block">
-        <h2>データ出力（Phase 4）</h2>
-        <p class="chart-note">蓄積した記録・水質データをCSVで出力し、発表資料に活用できます。</p>
+        <h2>SDカードのログを取り込む（CSV）</h2>
+        <p class="chart-note">1行目に見出しがあるCSVを想定しています（例：日時,水温,室温,湿度,気圧）。日付と時刻が別の列でも取り込めます。</p>
         <div class="btn-row">
-          <button class="btn-secondary" id="btnExportLogs">記録一覧をCSV出力</button>
-          <button class="btn-secondary" id="btnExportWQ">水質データをCSV出力</button>
+          <input type="file" id="sdFile" accept=".csv,.txt">
+          <label class="check-inline"><input type="checkbox" id="sdThin" checked> 1時間ごとに間引く（容量節約）</label>
+          <button class="btn-primary" id="btnImportSd">取り込む</button>
+        </div>
+        <p class="chart-note" id="sdResult"></p>
+      </div>
+
+      <div class="chart-block">
+        <h2>CSV出力（発表資料用）</h2>
+        <div class="btn-row">
+          <button class="btn-secondary" id="btnExportLogs">記録一覧</button>
+          <button class="btn-secondary" id="btnExportEnv">環境データ</button>
+          <button class="btn-secondary" id="btnExportWQ">水質管理表</button>
         </div>
       </div>
 
       <div class="chart-block">
-        <h2>データ管理</h2>
-        <p class="chart-note">この端末（ブラウザ）内にのみ保存されています。バックアップ・共有には上記のCSV出力をご利用ください。</p>
-        <button class="btn-danger" id="btnClearAll">全データを削除</button>
+        <h2>バックアップ（別の端末と共有）</h2>
+        <p class="chart-note">記録はこの端末のブラウザ内に保存されます。端末が違うと見えないので、定期的にJSONで保存し、別の端末で読み込んでください（読み込みは既存データに追加されます）。</p>
+        <div class="btn-row">
+          <button class="btn-secondary" id="btnBackup">全データをJSONで保存</button>
+          <input type="file" id="restoreFile" accept=".json">
+          <button class="btn-secondary" id="btnRestore">JSONを読み込む</button>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <h2>データの削除</h2>
+        <button class="btn-danger" id="btnClearAll">この端末の全データを削除</button>
       </div>
     </section>
 
