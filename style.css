@@ -433,3 +433,18 @@ textarea { resize: vertical; font-family: var(--font-body); }
 .log-item-head .del { margin-left: 10px; }
 
 @media (max-width: 860px) { .summary-row { grid-template-columns: 1fr; } }
+
+/* ===== v3: クラウド連携 ===== */
+.sync-banner {
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+.sync-banner.sync-ok { background: #eaf3ec; color: var(--leaf); border: 1px solid #bcdac2; }
+.sync-banner.sync-warn { background: #fdf0d9; color: #8a5a10; border: 1px solid #f0cf9a; }
+.sync-banner.sync-error { background: #fbeee9; color: var(--danger); border: 1px solid var(--danger); }
+.sync-banner.sync-busy { background: #eaf1f5; color: var(--water); border: 1px solid #bcd6e3; }
+.sync-banner.hidden { display: none; }
+
+button:disabled { opacity: 0.55; cursor: default; }

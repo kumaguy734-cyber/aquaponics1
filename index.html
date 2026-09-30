@@ -44,6 +44,8 @@
   <!-- ===== メイン ===== -->
   <main class="content">
 
+    <div id="syncBanner" class="sync-banner sync-warn">クラウド連携先が未設定です。「データ取り込み・出力」タブで設定してください。</div>
+
     <!-- ---------- ダッシュボード ---------- -->
     <section id="dashboard" class="tab-panel active">
       <header class="panel-head">
@@ -300,8 +302,18 @@
     <section id="data" class="tab-panel">
       <header class="panel-head">
         <h1>データ取り込み・出力</h1>
-        <p>SDカードのログ取り込み、CSV出力、バックアップを行います。</p>
+        <p>SDカードのログ取り込み、CSV出力、クラウド（Googleスプレッドシート）連携を行います。</p>
       </header>
+
+      <div class="chart-block">
+        <h2>クラウド連携先（Google Apps Script）</h2>
+        <p class="chart-note">Google Apps Scriptで発行した「ウェブアプリのURL」を貼り付けてください。どの端末からでも同じデータが見えるようになります。</p>
+        <label>ウェブアプリのURL<input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec"></label>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn-primary" id="btnSaveApi">保存して同期</button>
+          <span id="apiStatus" class="chart-note" style="margin:0"></span>
+        </div>
+      </div>
 
       <div class="chart-block">
         <h2>SDカードのログを取り込む（CSV）</h2>
@@ -324,18 +336,17 @@
       </div>
 
       <div class="chart-block">
-        <h2>バックアップ（別の端末と共有）</h2>
-        <p class="chart-note">記録はこの端末のブラウザ内に保存されます。端末が違うと見えないので、定期的にJSONで保存し、別の端末で読み込んでください（読み込みは既存データに追加されます）。</p>
+        <h2>スナップショット保存（念のためのバックアップ）</h2>
+        <p class="chart-note">記録の本体はGoogleスプレッドシート側にあります。ここでの保存は、その時点のコピーをJSONで手元に残すための保険です。読み込みはクラウドへは反映されません（この画面に一時的に表示するのみ）。</p>
         <div class="btn-row">
-          <button class="btn-secondary" id="btnBackup">全データをJSONで保存</button>
-          <input type="file" id="restoreFile" accept=".json">
-          <button class="btn-secondary" id="btnRestore">JSONを読み込む</button>
+          <button class="btn-secondary" id="btnBackup">現在のデータをJSONで保存</button>
         </div>
       </div>
 
       <div class="chart-block">
         <h2>データの削除</h2>
-        <button class="btn-danger" id="btnClearAll">この端末の全データを削除</button>
+        <p class="chart-note">Googleスプレッドシート上の全データを削除します。班員全員から見えなくなります。</p>
+        <button class="btn-danger" id="btnClearAll">クラウド上の全データを削除</button>
       </div>
     </section>
 
