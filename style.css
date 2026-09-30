@@ -1,165 +1,168 @@
-:root {
---primary-color: #1e3d34;
---primary-hover: #142a24;
---bg-color: #f4f6f4;
---card-bg: #ffffff;
---text-color: #333333;
---border-color: #e0e0e0;
---error-bg: #fde8e8;
---error-text: #9b1c1c;
---error-border: #f8b4b4;
---success-bg: #def7ec;
---success-text: #03543f;
+let chartInstance = null;
+let appData = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 初期化処理
+  const savedUrl = localStorage.getItem('gas_app_url');
+  if (savedUrl) {
+    document.getElementById('gas-url').value = savedUrl;
+  }
+
+  // イベントリスナーの登録
+  document.getElementById('save-sync-btn').addEventListener('click', handleSaveAndSync);
+  document.getElementById('import-btn').addEventListener('click', handleImportCSV);
+  
+  // 初期グラフ作成
+  initChart();
+});
+
+// UIメッセージ表示 helper
+function showStatusMessage(message, isError = true) {
+  const statusEl = document.getElementById('status-message');
+  statusEl.textContent = message;
+  statusEl.className = `status-message ${isError ? 'error' : 'success'}`;
 }
 
-body {
-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-background-color: var(--bg-color);
-color: var(--text-color);
-margin: 0;
-padding: 20px;
+function clearStatusMessage() {
+  const statusEl = document.getElementById('status-message');
+  statusEl.className = 'status-message hidden';
+  statusEl.textContent = '';
 }
 
-.container {
-max-width: 900px;
-margin: 0 auto;
+// Chart.js 初期化関数
+function initChart() {
+  if (typeof Chart === 'undefined') {
+    showStatusMessage('Chart.js が読み込まれていません。scriptタグを確認してください。', true);
+    return;
+  }
+
+  const ctx = document.getElementById('dataChart').getContext('2d');
+  
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'データ値',
+          data: [],
+          borderColor: '#1e3d34',
+          borderWidth: 2,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { display: true },
+        y: { beginAtZero: true }
+      }
+    }
+  });
 }
 
-h1 {
-color: var(--primary-color);
-margin-bottom: 8px;
+// グラフ描画更新関数
+function updateChart(labels, values) {
+  if (!chartInstance) {
+    initChart();
+  }
+  if (chartInstance) {
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = values;
+    chartInstance.update();
+  }
 }
 
-.description {
-color: #666;
-margin-bottom: 24px;
+// 保存して同期ボタンの処理
+async function handleSaveAndSync() {
+  clearStatusMessage();
+  const urlInput = document.getElementById('gas-url').value.trim();
+  const syncStatusText = document.getElementById('sync-status-text');
+
+  if (!urlInput) {
+    showStatusMessage('ウェブアプリのURLを入力してください。', true);
+    return;
+  }
+
+  localStorage.setItem('gas_app_url', urlInput);
+  syncStatusText.textContent = '通信中...';
+
+  try {
+    // データ取得 (GET通信)
+    const response = await fetch(urlInput, {
+      method: 'GET',
+      mode: 'cors'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+      syncStatusText.textContent = '同期完了';
+      showStatusMessage('データの取得に成功しました。', false);
+
+      if (result.data && Array.isArray(result.data)) {
+        appData = result.data;
+        const labels = appData.map(item => item.timestamp || item.date || '');
+        const values = appData.map(item => item.value || item.temp || 0);
+        updateChart(labels, values);
+      }
+    } else {
+      throw new Error(result.message || 'データ取得エラー');
+    }
+  } catch (error) {
+    console.error('Sync Error:', error);
+    syncStatusText.textContent = '接続エラー';
+    showStatusMessage(`同期に失敗しました : ${error.message} （URL・公開設定・通信環境を確認してください）`, true);
+  }
 }
 
-.card {
-background: var(--card-bg);
-border: 1px solid var(--border-color);
-border-radius: 8px;
-padding: 24px;
-margin-bottom: 20px;
-box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+// CSV取り込み処理
+function handleImportCSV() {
+  clearStatusMessage();
+  const fileInput = document.getElementById('csv-file-input');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    showStatusMessage('CSVファイルを選択してください。', true);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const text = e.target.result;
+    parseAndProcessCSV(text);
+  };
+  reader.readAsText(file);
 }
 
-.card h2 {
-font-size: 1.25rem;
-color: var(--primary-color);
-margin-top: 0;
-margin-bottom: 8px;
-}
+function parseAndProcessCSV(csvText) {
+  const lines = csvText.split('\n').filter(line => line.trim() !== '');
+  if (lines.length <= 1) {
+    showStatusMessage('有効なCSVデータが見つかりませんでした。', true);
+    return;
+  }
 
-.card-desc {
-font-size: 0.9rem;
-color: #666;
-margin-bottom: 16px;
-}
+  const labels = [];
+  const values = [];
 
-.form-group {
-display: flex;
-flex-direction: column;
-gap: 8px;
-}
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length >= 2) {
+      labels.push(cols[0].trim());
+      values.push(parseFloat(cols[1].trim()) || 0);
+    }
+  }
 
-.input-with-button {
-display: flex;
-gap: 12px;
-align-items: center;
-flex-wrap: wrap;
-}
-
-input[type="text"] {
-flex: 1;
-min-width: 250px;
-padding: 8px 12px;
-border: 1px solid #ccc;
-border-radius: 4px;
-font-size: 0.95rem;
-}
-
-.form-inline {
-display: flex;
-align-items: center;
-gap: 16px;
-flex-wrap: wrap;
-}
-
-.checkbox-label {
-display: flex;
-align-items: center;
-gap: 6px;
-font-size: 0.9rem;
-color: #444;
-}
-
-.button-group {
-display: flex;
-gap: 12px;
-flex-wrap: wrap;
-}
-
-.btn {
-padding: 8px 16px;
-border: none;
-border-radius: 4px;
-font-weight: bold;
-cursor: pointer;
-transition: background-color 0.2s;
-}
-
-.btn-primary {
-background-color: var(--primary-color);
-color: #fff;
-}
-
-.btn-primary:hover {
-background-color: var(--primary-hover);
-}
-
-.btn-dark {
-background-color: #2d3748;
-color: #fff;
-}
-
-.btn-dark:hover {
-background-color: #1a202c;
-}
-
-.btn-light {
-background-color: #edf2f7;
-color: #2d3748;
-border: 1px solid #cbd5e0;
-}
-
-.btn-light:hover {
-background-color: #e2e8f0;
-}
-
-.status-message {
-padding: 12px 16px;
-border-radius: 6px;
-margin-bottom: 20px;
-font-size: 0.95rem;
-}
-
-.status-message.error {
-background-color: var(--error-bg);
-color: var(--error-text);
-border: 1px solid var(--error-border);
-}
-
-.status-message.success {
-background-color: var(--success-bg);
-color: var(--success-text);
-}
-
-.status-message.hidden {
-display: none;
-}
-
-.status-text {
-font-size: 0.85rem;
-color: #666;
+  updateChart(labels, values);
+  showStatusMessage('CSVデータの取り込みが完了しました。', false);
 }
