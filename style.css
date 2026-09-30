@@ -1,168 +1,450 @@
-let chartInstance = null;
-let appData = [];
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 初期化処理
-  const savedUrl = localStorage.getItem('gas_app_url');
-  if (savedUrl) {
-    document.getElementById('gas-url').value = savedUrl;
-  }
-
-  // イベントリスナーの登録
-  document.getElementById('save-sync-btn').addEventListener('click', handleSaveAndSync);
-  document.getElementById('import-btn').addEventListener('click', handleImportCSV);
-  
-  // 初期グラフ作成
-  initChart();
-});
-
-// UIメッセージ表示 helper
-function showStatusMessage(message, isError = true) {
-  const statusEl = document.getElementById('status-message');
-  statusEl.textContent = message;
-  statusEl.className = `status-message ${isError ? 'error' : 'success'}`;
+:root {
+  --deep-teal: #123c36;
+  --deep-teal-light: #1c534a;
+  --bg: #f3f7f4;
+  --panel: #ffffff;
+  --line: #d9e3de;
+  --text: #16211d;
+  --text-soft: #56655f;
+  --amber: #d98e2b;
+  --water: #3b7ea1;
+  --leaf: #5b8c5a;
+  --danger: #b3452f;
+  --font-head: 'Zilla Slab', serif;
+  --font-body: 'Inter', sans-serif;
 }
 
-function clearStatusMessage() {
-  const statusEl = document.getElementById('status-message');
-  statusEl.className = 'status-message hidden';
-  statusEl.textContent = '';
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  scroll-behavior: smooth;
 }
 
-// Chart.js 初期化関数
-function initChart() {
-  if (typeof Chart === 'undefined') {
-    showStatusMessage('Chart.js が読み込まれていません。scriptタグを確認してください。', true);
-    return;
-  }
-
-  const ctx = document.getElementById('dataChart').getContext('2d');
-  
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        {
-          label: 'データ値',
-          data: [],
-          borderColor: '#1e3d34',
-          borderWidth: 2,
-          fill: false
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { display: true },
-        y: { beginAtZero: true }
-      }
-    }
-  });
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
 }
 
-// グラフ描画更新関数
-function updateChart(labels, values) {
-  if (!chartInstance) {
-    initChart();
-  }
-  if (chartInstance) {
-    chartInstance.data.labels = labels;
-    chartInstance.data.datasets[0].data = values;
-    chartInstance.update();
-  }
+/* ===== サイドバー ===== */
+.sidebar {
+  background: var(--deep-teal);
+  color: #eef5f2;
+  padding: 28px 18px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
-// 保存して同期ボタンの処理
-async function handleSaveAndSync() {
-  clearStatusMessage();
-  const urlInput = document.getElementById('gas-url').value.trim();
-  const syncStatusText = document.getElementById('sync-status-text');
-
-  if (!urlInput) {
-    showStatusMessage('ウェブアプリのURLを入力してください。', true);
-    return;
-  }
-
-  localStorage.setItem('gas_app_url', urlInput);
-  syncStatusText.textContent = '通信中...';
-
-  try {
-    // データ取得 (GET通信)
-    const response = await fetch(urlInput, {
-      method: 'GET',
-      mode: 'cors'
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    
-    if (result.status === 'success') {
-      syncStatusText.textContent = '同期完了';
-      showStatusMessage('データの取得に成功しました。', false);
-
-      if (result.data && Array.isArray(result.data)) {
-        appData = result.data;
-        const labels = appData.map(item => item.timestamp || item.date || '');
-        const values = appData.map(item => item.value || item.temp || 0);
-        updateChart(labels, values);
-      }
-    } else {
-      throw new Error(result.message || 'データ取得エラー');
-    }
-  } catch (error) {
-    console.error('Sync Error:', error);
-    syncStatusText.textContent = '接続エラー';
-    showStatusMessage(`同期に失敗しました : ${error.message} （URL・公開設定・通信環境を確認してください）`, true);
-  }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
 }
 
-// CSV取り込み処理
-function handleImportCSV() {
-  clearStatusMessage();
-  const fileInput = document.getElementById('csv-file-input');
-  const file = fileInput.files[0];
-
-  if (!file) {
-    showStatusMessage('CSVファイルを選択してください。', true);
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const text = e.target.result;
-    parseAndProcessCSV(text);
-  };
-  reader.readAsText(file);
+.brand-mark {
+  font-size: 28px;
+  color: var(--amber);
+  line-height: 1;
 }
 
-function parseAndProcessCSV(csvText) {
-  const lines = csvText.split('\n').filter(line => line.trim() !== '');
-  if (lines.length <= 1) {
-    showStatusMessage('有効なCSVデータが見つかりませんでした。', true);
-    return;
-  }
-
-  const labels = [];
-  const values = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',');
-    if (cols.length >= 2) {
-      labels.push(cols[0].trim());
-      values.push(parseFloat(cols[1].trim()) || 0);
-    }
-  }
-
-  updateChart(labels, values);
-  showStatusMessage('CSVデータの取り込みが完了しました。', false);
+.brand-text strong {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 16px;
+  line-height: 1.3;
 }
+
+.brand-text small {
+  color: #a9c4bd;
+  font-size: 12px;
+}
+
+.tabs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.tab-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #cfe3dd;
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.tab-btn:hover { background: rgba(255,255,255,0.06); }
+
+.tab-btn.active {
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
+  border-left: 3px solid var(--amber);
+}
+
+.sidebar-foot {
+  font-size: 12px;
+  color: #93b0a8;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  padding-top: 14px;
+}
+
+/* ===== メイン ===== */
+.content {
+  padding: 36px 44px 80px;
+  max-width: 980px;
+}
+
+.panel-head h1 {
+  font-family: var(--font-head);
+  font-size: 30px;
+  margin: 0 0 6px;
+  color: var(--deep-teal);
+}
+
+.panel-head p {
+  margin: 0 0 26px;
+  color: var(--text-soft);
+  font-size: 14px;
+  max-width: 65ch;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ===== ステータスカード ===== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.stat-value {
+  font-family: var(--font-head);
+  font-size: 32px;
+  color: var(--water);
+  line-height: 1.1;
+}
+
+.stat-unit {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* ===== アラート ===== */
+.alert-box {
+  background: #fbeee9;
+  border: 1px solid var(--danger);
+  color: #7a2c1a;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 22px;
+  font-size: 14px;
+}
+
+.alert-box.hidden { display: none; }
+
+/* ===== グラフブロック ===== */
+.chart-block {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 22px 24px;
+  margin-bottom: 22px;
+}
+
+.chart-block h2 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  margin: 0 0 12px;
+  color: var(--deep-teal);
+}
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-note {
+  font-size: 12px;
+  color: var(--text-soft);
+  margin: 4px 0 14px;
+}
+
+/* ===== フォーム ===== */
+.log-form {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.log-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fbfcfb;
+  color: var(--text);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--water);
+  outline-offset: 1px;
+}
+
+textarea { resize: vertical; font-family: var(--font-body); }
+
+/* ===== ボタン ===== */
+.btn-primary, .btn-secondary, .btn-small, .btn-danger {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.btn-primary { background: var(--deep-teal); color: #fff; }
+.btn-primary:hover { background: var(--deep-teal-light); }
+
+.btn-secondary { background: #eaf1ee; color: var(--deep-teal); border: 1px solid var(--line); }
+.btn-secondary:hover { background: #dfe9e4; }
+
+.btn-small { background: var(--amber); color: #34220a; padding: 7px 14px; font-size: 13px; white-space: nowrap; }
+.btn-small:hover { filter: brightness(0.95); }
+
+.btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: #fbeee9; }
+
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ===== 記録一覧 ===== */
+.filter-row { margin-bottom: 18px; }
+.filter-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-soft); max-width: 260px; }
+
+.log-list { display: flex; flex-direction: column; gap: 12px; }
+
+.log-item {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--water);
+  border-radius: 4px;
+  padding: 16px 18px;
+}
+
+.log-item[data-team="iot"] { border-left-color: var(--water); }
+.log-item[data-team="hw"] { border-left-color: var(--amber); }
+.log-item[data-team="bio"] { border-left-color: var(--leaf); }
+.log-item[data-team="agri"] { border-left-color: #7a9e3b; }
+
+.log-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+
+.log-item-head b { color: var(--deep-teal); }
+
+.log-item p { margin: 4px 0; font-size: 14px; }
+.log-item .handover { color: var(--danger); font-size: 13px; }
+.log-item img { max-width: 160px; border-radius: 4px; margin-top: 8px; display: block; }
+
+.log-item-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+  color: var(--text-soft);
+  margin: 6px 0;
+}
+.log-item-fields span b { color: var(--text); }
+
+/* ===== マイルストーン ===== */
+.milestone-wrap { display: flex; flex-direction: column; gap: 18px; }
+
+.phase-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 20px 22px;
+}
+
+.phase-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.phase-head h3 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  margin: 0;
+  color: var(--deep-teal);
+}
+
+.phase-head span { font-size: 13px; color: var(--text-soft); }
+
+.progress-bar {
+  height: 8px;
+  background: #e6ede9;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--leaf);
+}
+
+.checklist { display: flex; flex-direction: column; gap: 8px; }
+
+.checklist label {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.checklist input[type="checkbox"] { width: 16px; height: 16px; }
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; }
+  .content { padding: 26px 20px 60px; }
+  .card-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ===== v2 追加分 ===== */
+.sidebar-foot { display: flex; flex-direction: column; gap: 4px; }
+#nextSession { color: #f0c98a; font-weight: 600; }
+
+.stat-value { min-height: 1.1em; }
+#statNote { margin: -18px 0 22px; }
+
+.check-inline { flex-direction: row !important; align-items: center; gap: 6px !important; font-size: 13px; color: var(--text-soft); }
+.btn-row { align-items: center; }
+.btn-row .btn-primary, .btn-row .btn-secondary { align-self: auto; }
+
+/* 水質管理表（Excelと同じ：項目が行、日付が列） */
+.table-scroll { overflow-x: auto; }
+.wq-table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.wq-table th, .wq-table td { border: 1px solid var(--line); padding: 8px 12px; text-align: center; white-space: nowrap; }
+.wq-table th { background: #eaf1ee; color: var(--deep-teal); font-weight: 600; }
+.wq-table td:first-child, .wq-table th:first-child { text-align: left; position: sticky; left: 0; background: #f6faf8; }
+.wq-table .empty-cell { color: #b8c4be; }
+.wq-table .flag { color: var(--danger); font-weight: 700; }
+.icon-del { border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 14px; padding: 0 0 0 6px; }
+.icon-del:hover { color: var(--danger); }
+
+/* スケジュール */
+.summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+.summary-card { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; }
+.summary-card .num { font-family: var(--font-head); font-size: 30px; color: var(--deep-teal); line-height: 1.1; }
+.summary-card .lab { font-size: 12px; color: var(--text-soft); }
+
+.session-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.session {
+  border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; min-width: 96px;
+  font-size: 13px; background: #fbfcfb;
+}
+.session b { display: block; font-family: var(--font-head); font-size: 16px; color: var(--deep-teal); }
+.session span { font-size: 11px; color: var(--text-soft); }
+.session.work { border-top: 3px solid var(--water); }
+.session.wrap { border-top: 3px solid var(--leaf); }
+.session.present { border-top: 3px solid var(--amber); }
+.session.past { opacity: 0.5; }
+.session.next { background: #fff7e8; border-color: var(--amber); box-shadow: 0 0 0 2px rgba(217,142,43,0.25); }
+.session-legend { font-size: 12px; color: var(--text-soft); margin-top: 12px; }
+
+.phase-period { font-size: 12px; color: var(--text-soft); margin: -6px 0 10px; }
+.checklist .task { flex-direction: row; align-items: flex-start; gap: 10px; }
+.checklist .task span.txt { flex: 1; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+.badge.when { background: #e6eef3; color: var(--water); }
+.badge.added { background: #fdf0d9; color: #8a5a10; }
+.task.done .txt { color: var(--text-soft); text-decoration: line-through; }
+
+.log-item-head .del { margin-left: 10px; }
+
+@media (max-width: 860px) { .summary-row { grid-template-columns: 1fr; } }
+
+/* ===== v3: クラウド連携 ===== */
+.sync-banner {
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+.sync-banner.sync-ok { background: #eaf3ec; color: var(--leaf); border: 1px solid #bcdac2; }
+.sync-banner.sync-warn { background: #fdf0d9; color: #8a5a10; border: 1px solid #f0cf9a; }
+.sync-banner.sync-error { background: #fbeee9; color: var(--danger); border: 1px solid var(--danger); }
+.sync-banner.sync-busy { background: #eaf1f5; color: var(--water); border: 1px solid #bcd6e3; }
+.sync-banner.hidden { display: none; }
+
+button:disabled { opacity: 0.55; cursor: default; }
